@@ -1,0 +1,66 @@
+openapi: 3.0.3
+info:
+  title: SubDub API
+  version: 1.0.0
+  description: Subscription tracking API.
+servers:
+  - url: http://localhost:3000
+paths:
+  /api/v1/auth/sign-up:
+    post:
+      summary: Register a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthInput'
+      responses:
+        '201': { description: User created }
+  /api/v1/auth/sign-in:
+    post:
+      summary: Sign in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthInput'
+      responses:
+        '200': { description: Signed in }
+  /api/v1/auth/refresh:
+    post:
+      summary: Rotate refresh token
+      responses:
+        '200': { description: Token refreshed }
+  /api/v1/subscriptions:
+    get:
+      summary: List the current user's subscriptions
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Subscription list }
+    post:
+      summary: Create a subscription
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201': { description: Subscription created }
+  /api/v1/stats/summary:
+    get:
+      summary: Get spending summary
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Summary returned }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuthInput:
+      type: object
+      required: [email, password]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }

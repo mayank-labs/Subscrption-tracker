@@ -37,6 +37,23 @@ npm run dev
 
 The API runs at `http://localhost:3000`.
 
+Health endpoints:
+
+- `GET /health`
+- `GET /ready`
+- `GET /api/docs`
+
+Authenticated API groups:
+
+- `/api/v1/auth`
+- `/api/v1/users`
+- `/api/v1/subscriptions`
+- `/api/v1/stats`
+
+The backend now includes refresh-token rotation, Zod request validation,
+subscription analytics, CSV export, structured HTTP logging, Helmet/CORS
+hardening, and optional pg-boss/Resend renewal reminders.
+
 ## Backend structure
 
 - `app.js` configures Express without opening a port.

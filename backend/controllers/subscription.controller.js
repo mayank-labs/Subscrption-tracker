@@ -1,57 +1,11 @@
 import prisma from '../database/prisma.js';
-
-const frequencyToCycle = {
-  Daily: 'DAILY',
-  Weekly: 'WEEKLY',
-  Monthly: 'MONTHLY',
-  Yearly: 'YEARLY',
-};
-
-const cycleToFrequency = {
-  DAILY: 'Daily',
-  WEEKLY: 'Weekly',
-  MONTHLY: 'Monthly',
-  YEARLY: 'Yearly',
-};
-
-const getRenewalDate = (startDate, cycle) => {
-  const renewalDate = new Date(startDate);
-  if (cycle === 'MONTHLY') renewalDate.setMonth(renewalDate.getMonth() + 1);
-  else if (cycle === 'YEARLY') renewalDate.setFullYear(renewalDate.getFullYear() + 1);
-  else renewalDate.setDate(renewalDate.getDate() + (cycle === 'WEEKLY' ? 7 : 1));
-  return renewalDate;
-};
-
-const toSubscriptionData = (body, userId, existing = {}) => {
-  const cycle = body.billingCycle || frequencyToCycle[body.frequency] || existing.billingCycle;
-  const startDate = body.startDate ? new Date(body.startDate) : existing.startDate;
-  const renewalDate = body.renewalDate
-    ? new Date(body.renewalDate)
-    : existing.renewalDate || getRenewalDate(startDate, cycle);
-
-  return {
-    name: body.name ?? existing.name,
-    price: body.price ?? existing.price,
-    currency: body.currency ?? existing.currency ?? 'INR',
-    billingCycle: cycle,
-    category: body.category ?? body.categor ?? existing.category ?? 'Other',
-    paymentMethod: body.paymentMethod ?? existing.paymentMethod,
-    startDate,
-    renewalDate,
-    userId,
-  };
-};
-
-const serializeSubscription = (subscription) => ({
-  ...subscription,
-  price: subscription.price.toString(),
-  frequency: cycleToFrequency[subscription.billingCycle],
-});
+import { findOwnedSubscription, listSubscriptions, serializeSubscriptions, subscriptionData } from '../services/subscription.service.js';
+import { serializeSubscription } from '../utils/subscription.js';
 
 export const createSubscription = async (req, res, next) => {
   try {
     const subscription = await prisma.subscription.create({
-      data: toSubscriptionData(req.body, req.user.id),
+      data: subscriptionData(req.body, req.user.id),
     });
     res.status(201).json({ success: true, data: serializeSubscription(subscription) });
   } catch (error) {
@@ -65,7 +19,7 @@ export const getSubscriptions = async (req, res, next) => {
       where: { userId: req.user.id },
       orderBy: { renewalDate: 'asc' },
     });
-    res.json({ success: true, data: subscriptions.map(serializeSubscription) });
+    res.json({ success: true, data: serializeSubscriptions(subscriptions) });
   } catch (error) {
     next(error);
   }
@@ -73,9 +27,7 @@ export const getSubscriptions = async (req, res, next) => {
 
 export const getSubscription = async (req, res, next) => {
   try {
-    const subscription = await prisma.subscription.findFirst({
-      where: { id: req.params.id, userId: req.user.id },
-    });
+    const subscription = await findOwnedSubscription(req.params.id, req.user.id);
     if (!subscription) {
       return res.status(404).json({ success: false, message: 'Subscription not found' });
     }
@@ -95,7 +47,7 @@ export const updateSubscription = async (req, res, next) => {
     }
     const subscription = await prisma.subscription.update({
       where: { id: existing.id },
-      data: toSubscriptionData(req.body, req.user.id, existing),
+      data: subscriptionData(req.body, req.user.id, existing),
     });
     res.json({ success: true, data: serializeSubscription(subscription) });
   } catch (error) {
@@ -135,19 +87,38 @@ export const cancelSubscription = async (req, res, next) => {
 
 export const getUpcomingSubscriptions = async (req, res, next) => {
   try {
-    const days = Math.max(1, Number(req.query.days) || 30);
+    const days = req.validatedQuery.days;
     const today = new Date();
     const endDate = new Date(today);
     endDate.setDate(endDate.getDate() + days);
-    const subscriptions = await prisma.subscription.findMany({
-      where: {
-        userId: req.user.id,
-        status: 'ACTIVE',
-        renewalDate: { gte: today, lte: endDate },
-      },
-      orderBy: { renewalDate: 'asc' },
+    const subscriptions = await listSubscriptions(req.user.id, {
+      status: 'ACTIVE',
+      renewalDate: { gte: today, lte: endDate },
     });
-    res.json({ success: true, data: subscriptions.map(serializeSubscription) });
+    res.json({ success: true, data: serializeSubscriptions(subscriptions) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const exportSubscriptions = async (req, res, next) => {
+  try {
+    const subscriptions = await listSubscriptions(req.user.id);
+    const rows = [
+      ['name', 'price', 'currency', 'frequency', 'category', 'status', 'startDate', 'renewalDate'],
+      ...subscriptions.map((subscription) => [
+        subscription.name,
+        subscription.price.toString(),
+        subscription.currency,
+        subscription.billingCycle,
+        subscription.category,
+        subscription.status,
+        subscription.startDate.toISOString().slice(0, 10),
+        subscription.renewalDate.toISOString().slice(0, 10),
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n');
+    res.type('text/csv').attachment('subscriptions.csv').send(csv);
   } catch (error) {
     next(error);
   }

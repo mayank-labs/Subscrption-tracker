@@ -19,12 +19,18 @@
     "@prisma/client": "^7.10.1",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "~1.4.4",
+    "cors": "^2.8.5",
     "debug": "~2.6.9",
     "dotenv": "^17.2.3",
     "express": "~4.16.1",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "~1.9.1",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "pg-boss": "^12.38.0",
+    "pino-http": "^10.5.0",
+    "resend": "^6.34.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
