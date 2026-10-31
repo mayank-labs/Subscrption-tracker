@@ -2,65 +2,669 @@ openapi: 3.0.3
 info:
   title: SubDub API
   version: 1.0.0
-  description: Subscription tracking API.
+  description: |
+    Subscription tracking API for authenticated users. Access tokens are
+    returned in JSON; refresh tokens are rotated through an HttpOnly cookie.
 servers:
   - url: http://localhost:3000
+    description: Local development
+tags:
+  - name: Health
+  - name: Authentication
+  - name: Users
+  - name: Subscriptions
+  - name: Analytics
 paths:
+  /:
+    get:
+      tags: [Health]
+      summary: Service welcome message
+      responses:
+        '200':
+          description: Service is running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+  /health:
+    get:
+      tags: [Health]
+      summary: Check process liveness
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, status]
+                properties:
+                  success: { type: boolean, example: true }
+                  status: { type: string, example: ok }
+  /ready:
+    get:
+      tags: [Health]
+      summary: Check database readiness
+      responses:
+        '200':
+          description: Database is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, status]
+                properties:
+                  success: { type: boolean, example: true }
+                  status: { type: string, example: ready }
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/docs:
+    get:
+      tags: [Health]
+      summary: Download the OpenAPI contract
+      responses:
+        '200':
+          description: OpenAPI YAML document
+          content:
+            text/yaml:
+              schema: { type: string }
   /api/v1/auth/sign-up:
     post:
+      tags: [Authentication]
       summary: Register a user
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AuthInput'
+              $ref: '#/components/schemas/SignUpInput'
+            example:
+              name: Ada Lovelace
+              email: ada@example.com
+              password: correct horse battery staple
       responses:
-        '201': { description: User created }
+        '201':
+          description: User created and session started
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/RefreshCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /api/v1/auth/sign-in:
     post:
+      tags: [Authentication]
       summary: Sign in
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AuthInput'
+              $ref: '#/components/schemas/SignInInput'
       responses:
-        '200': { description: Signed in }
+        '200':
+          description: User authenticated
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/RefreshCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /api/v1/auth/refresh:
     post:
-      summary: Rotate refresh token
+      tags: [Authentication]
+      summary: Rotate the refresh token
+      security:
+        - refreshCookie: []
       responses:
-        '200': { description: Token refreshed }
+        '200':
+          description: Access token refreshed
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/RefreshCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/auth/sign-out:
+    post:
+      tags: [Authentication]
+      summary: Revoke the current refresh token
+      security:
+        - refreshCookie: []
+      responses:
+        '200':
+          description: User signed out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+  /api/v1/users:
+    get:
+      tags: [Users]
+      summary: List users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Public user list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/User' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/users/{id}:
+    get:
+      tags: [Users]
+      summary: Get a user
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: User
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: '#/components/schemas/User' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/v1/subscriptions:
     get:
+      tags: [Subscriptions]
       summary: List the current user's subscriptions
-      security: [{ bearerAuth: [] }]
+      security:
+        - bearerAuth: []
       responses:
-        '200': { description: Subscription list }
+        '200':
+          description: Subscriptions ordered by renewal date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
     post:
+      tags: [Subscriptions]
       summary: Create a subscription
-      security: [{ bearerAuth: [] }]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionInput'
       responses:
-        '201': { description: Subscription created }
+        '201':
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/subscriptions/upcoming-renewals:
+    get:
+      tags: [Subscriptions]
+      summary: List upcoming active renewals
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          required: false
+          description: Number of days to look ahead.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 30
+      responses:
+        '200':
+          description: Upcoming subscriptions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionListResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/subscriptions/export.csv:
+    get:
+      tags: [Subscriptions]
+      summary: Export subscriptions as CSV
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: CSV download
+          headers:
+            Content-Disposition:
+              schema: { type: string, example: attachment; filename="subscriptions.csv" }
+          content:
+            text/csv:
+              schema: { type: string }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/subscriptions/{id}:
+    get:
+      tags: [Subscriptions]
+      summary: Get an owned subscription
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Subscriptions]
+      summary: Update an owned subscription
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionUpdateInput'
+      responses:
+        '200':
+          description: Subscription updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Subscriptions]
+      summary: Delete an owned subscription
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Subscription deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/subscriptions/{id}/cancel:
+    put:
+      tags: [Subscriptions]
+      summary: Cancel an owned subscription
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Subscription cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/v1/stats/summary:
     get:
-      summary: Get spending summary
-      security: [{ bearerAuth: [] }]
+      tags: [Analytics]
+      summary: Get active subscription spending summary
+      security:
+        - bearerAuth: []
       responses:
-        '200': { description: Summary returned }
+        '200':
+          description: Spending summary
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: '#/components/schemas/Summary' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/stats/by-category:
+    get:
+      tags: [Analytics]
+      summary: Get active monthly spend by category
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Category totals
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/CategoryStat' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/stats/monthly-trend:
+    get:
+      tags: [Analytics]
+      summary: Get the twelve-month projected trend
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Monthly trend
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/MonthlyTrend' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/stats/insights:
+    get:
+      tags: [Analytics]
+      summary: Get spending insights
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Spending insights
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: '#/components/schemas/Insights' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refreshToken
+  headers:
+    RefreshCookie:
+      description: Rotated HttpOnly refresh-token cookie.
+      schema: { type: string }
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UnauthorizedError'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Unique value already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    ServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
   schemas:
-    AuthInput:
+    User:
+      type: object
+      required: [id, name, email, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: Ada Lovelace }
+        email: { type: string, format: email, example: ada@example.com }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    SignUpInput:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: { type: string, minLength: 1 }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, format: password }
+    SignInInput:
       type: object
       required: [email, password]
       properties:
-        name: { type: string }
         email: { type: string, format: email }
-        password: { type: string, minLength: 8 }
+        password: { type: string, minLength: 1, format: password }
+    AuthData:
+      type: object
+      required: [accessToken, user]
+      properties:
+        accessToken: { type: string }
+        user:
+          type: object
+          required: [id, name, email]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            email: { type: string, format: email }
+    AuthResponse:
+      type: object
+      required: [success, message, data]
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/AuthData' }
+    RefreshResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, example: true }
+        data: { $ref: '#/components/schemas/AuthData' }
+    SubscriptionInput:
+      type: object
+      required: [name, price, startDate]
+      properties:
+        name: { type: string, minLength: 1 }
+        price: { type: number, exclusiveMinimum: 0, example: 499 }
+        currency: { type: string, pattern: '^[A-Za-z]{3}$', example: INR }
+        billingCycle:
+          type: string
+          enum: [DAILY, WEEKLY, MONTHLY, YEARLY]
+        frequency:
+          type: string
+          enum: [Daily, Weekly, Monthly, Yearly]
+        category: { type: string, example: Entertainment }
+        categor: { type: string, description: Backwards-compatible category alias }
+        paymentMethod: { type: string, example: Visa }
+        startDate: { type: string, format: date }
+        renewalDate: { type: string, format: date }
+    SubscriptionUpdateInput:
+      type: object
+      description: At least one property must be supplied; all properties are optional individually.
+      properties:
+        name: { type: string, minLength: 1 }
+        price: { type: number, exclusiveMinimum: 0 }
+        currency: { type: string, pattern: '^[A-Za-z]{3}$' }
+        billingCycle: { type: string, enum: [DAILY, WEEKLY, MONTHLY, YEARLY] }
+        frequency: { type: string, enum: [Daily, Weekly, Monthly, Yearly] }
+        category: { type: string }
+        categor: { type: string, description: Backwards-compatible category alias }
+        paymentMethod: { type: string }
+        startDate: { type: string, format: date }
+        renewalDate: { type: string, format: date }
+    Subscription:
+      allOf:
+        - $ref: '#/components/schemas/SubscriptionInput'
+        - type: object
+          required: [id, currency, billingCycle, frequency, category, paymentMethod, status, renewalDate, createdAt, updatedAt]
+          properties:
+            id: { type: string, format: uuid }
+            currency: { type: string, example: INR }
+            billingCycle: { type: string, enum: [DAILY, WEEKLY, MONTHLY, YEARLY] }
+            frequency: { type: string, enum: [Daily, Weekly, Monthly, Yearly] }
+            category: { type: string, example: Entertainment }
+            paymentMethod: { type: string }
+            status: { type: string, enum: [ACTIVE, CANCELLED] }
+            price: { type: string, example: '499' }
+            renewalDate: { type: string, format: date-time }
+            startDate: { type: string, format: date-time }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    SubscriptionResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, example: true }
+        data: { $ref: '#/components/schemas/Subscription' }
+    SubscriptionListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Subscription' }
+    Summary:
+      type: object
+      required: [monthlySpend, yearlySpend, activeSubscriptions, nextRenewal]
+      properties:
+        monthlySpend: { type: number, example: 499 }
+        yearlySpend: { type: number, example: 5988 }
+        activeSubscriptions: { type: integer, example: 1 }
+        nextRenewal: { type: string, format: date-time, nullable: true }
+    CategoryStat:
+      type: object
+      required: [category, monthlySpend]
+      properties:
+        category: { type: string }
+        monthlySpend: { type: number }
+    MonthlyTrend:
+      type: object
+      required: [month, projectedSpend]
+      properties:
+        month: { type: string, pattern: '^\d{4}-\d{2}$', example: '2026-10' }
+        projectedSpend: { type: number }
+    Insights:
+      type: object
+      required: [mostExpensive, monthlyTotal, projectedYearlySpend, categoryCount]
+      properties:
+        mostExpensive:
+          nullable: true
+          type: object
+          required: [name, monthlySpend]
+          properties:
+            name: { type: string }
+            monthlySpend: { type: number }
+        monthlyTotal: { type: number }
+        projectedYearlySpend: { type: number }
+        categoryCount: { type: integer }
+    MessageResponse:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+    ErrorResponse:
+      type: object
+      required: [success, message]
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string }
+    UnauthorizedError:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, example: unauthorized }
+    ValidationError:
+      type: object
+      required: [success, message, errors]
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string, example: Validation failed }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field: { type: string, example: price }
+              message: { type: string, example: Price must be greater than zero }

@@ -1,65 +1,61 @@
 # SubDub
 
-SubDub is a subscription tracker with an Express API, PostgreSQL, and Prisma.
-The backend lives in [backend/](./backend).
+SubDub is a PostgreSQL-backed subscription tracker with an Express API,
+Prisma data access, JWT authentication, analytics, CSV export, and optional
+renewal reminders.
 
-## Supabase configuration
+## Start here
 
-Supabase project URLs and API keys are not PostgreSQL connection strings. Prisma
-needs the database connection string from **Supabase Dashboard → Connect →
-ORMs → Prisma**.
+The complete setup, architecture, configuration, data model, and operational
+notes are in [subscription-tracker-guide.md](./subscription-tracker-guide.md).
 
-Create `backend/.env` from [backend/.env.example](./backend/.env.example) and
-set:
+The API references are:
 
-```env
-DATABASE_URL="postgresql://...supabase.../postgres?sslmode=require"
-```
+- [Human-readable API documentation](./backend/docs/API.md)
+- [OpenAPI 3.0 specification](./backend/docs/openapi.yaml)
 
-Keep `SUPABASE_SERVICE_KEY` private. It is not required by Prisma for direct
-database access, but may be used later for Supabase-specific APIs.
+When the backend is running, the same OpenAPI document is available at
+`http://localhost:3000/api/docs`.
 
-The current local setup normalizes Supabase's `sslmode=require` URL to
-`sslmode=no-verify` because some local Node/Postgres installations reject the
-pooler's certificate chain. Use a trusted CA and `sslmode=verify-full` in
-production instead of disabling certificate verification.
-
-## Run locally
+## Quick start
 
 ```bash
 cd backend
 npm install
+cp .env.example .env
+# Set DATABASE_URL and JWT_SECRET (or separate JWT access/refresh secrets).
 npm run db:validate
 npm run db:generate
 npm run db:migrate -- --name init
 npm run dev
 ```
 
-The API runs at `http://localhost:3000`.
+The default API URL is `http://localhost:3000`.
 
-Health endpoints:
+In a second terminal, start the frontend:
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+The frontend is available at `http://localhost:5173`. Its Vite proxy forwards
+API requests to the backend configured by `VITE_BACKEND_URL`.
+
+Public endpoints:
 
 - `GET /health`
 - `GET /ready`
 - `GET /api/docs`
 
-Authenticated API groups:
+Authenticated endpoint groups:
 
 - `/api/v1/auth`
 - `/api/v1/users`
 - `/api/v1/subscriptions`
 - `/api/v1/stats`
 
-The backend now includes refresh-token rotation, Zod request validation,
-subscription analytics, CSV export, structured HTTP logging, Helmet/CORS
-hardening, and optional pg-boss/Resend renewal reminders.
-
-## Backend structure
-
-- `app.js` configures Express without opening a port.
-- `server.js` connects Prisma and starts the HTTP server.
-- `prisma/` contains the PostgreSQL schema and migrations.
-- `database/prisma.js` exports one Prisma client.
-- `controllers/` contains HTTP handlers.
-- `routes/` contains API routes.
-- `middleware/` contains authentication, Arcjet, and error middleware.
+Never commit `backend/.env` or any database, JWT, Supabase, Arcjet, or Resend
+secret.

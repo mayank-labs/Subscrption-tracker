@@ -1,0 +1,50 @@
+@import 'tailwindcss';
+
+@layer base {
+  * { border-color: #242424; }
+  html { background: #080808; }
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    background: #080808;
+    color: #e6e6e6;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, select { cursor: pointer; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #bdbdbd; outline-offset: 2px; }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border bg-[#101010];
+    border-color: #242424;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  }
+  .card:hover { border-color: #303030; }
+  .button { @apply inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50; }
+  .button-primary { @apply bg-white text-black hover:bg-neutral-200; }
+  .button-secondary { @apply border bg-transparent text-neutral-300 hover:bg-white/[0.06] hover:text-white; border-color: #303030; }
+  .button-ghost { @apply text-neutral-400 hover:bg-white/5 hover:text-white; }
+  .button-danger { @apply bg-white/10 text-white hover:bg-white/20; }
+  .input { @apply mt-2 h-10 w-full rounded-lg border bg-[#0b0b0b] px-3 text-sm text-neutral-200 placeholder:text-neutral-600 focus:outline-none; border-color: #303030; }
+  .input:focus { border-color: #a3a3a3; }
+  .field-label { @apply block text-xs font-medium text-neutral-400; }
+  .sidebar { @apply fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r bg-[#0b0b0b] transition-transform duration-200; border-color: #1f1f1f; }
+  .nav-item { @apply flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-neutral-500 transition-colors hover:bg-white/[0.06] hover:text-white; }
+  .nav-active { @apply bg-white text-black hover:bg-neutral-200 hover:text-black; }
+  .page-content { @apply mx-auto max-w-[1480px] p-4 sm:p-7 lg:p-9; }
+  .page-heading { @apply flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between; }
+  .stat-card { @apply p-5; }
+  .section-title { @apply text-sm font-semibold text-neutral-200; }
+  .section-subtitle { @apply mt-1 text-xs text-neutral-600; }
+  .select-button { @apply inline-flex items-center gap-2 rounded-lg border border-[#303030] bg-transparent px-3 py-2 text-xs text-neutral-400 hover:bg-white/10 hover:text-white; }
+  .subscription-row { @apply flex items-center gap-3 border-b border-[#1f1f1f] px-4 py-3.5 last:border-0 sm:gap-4 sm:px-6; }
+  .auth-shell { @apply grid min-h-screen place-items-center bg-[#080808] px-4 py-10; }
+  .modal-backdrop { @apply fixed inset-0 z-50 grid place-items-center bg-black/85 p-4; }
+  .modal-card { @apply w-full max-w-md p-6; }
+}
+
+@media (max-width: 520px) {
+  .subscription-row { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+}

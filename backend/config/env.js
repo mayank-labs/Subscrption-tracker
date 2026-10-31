@@ -16,6 +16,9 @@ export const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
 export const JWT_ACCESS_EXPIRES_IN = process.env.JWT_ACCESS_EXPIRES_IN || JWT_EXPIRES_IN || '15m';
 export const JWT_REFRESH_EXPIRES_IN = Number(process.env.JWT_REFRESH_EXPIRES_IN || 604800);
 export const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+export const DATABASE_SSL_REJECT_UNAUTHORIZED = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED
+    ? process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === 'true'
+    : NODE_ENV === 'production';
 export const RESEND_API_KEY = process.env.RESEND_API_KEY;
 export const REMINDER_FROM_EMAIL = process.env.REMINDER_FROM_EMAIL || 'SubDub <onboarding@resend.dev>';
 
