@@ -264,22 +264,25 @@ function SpendingChart({ trend }: { trend?: api.Trend[] }) {
 }
 
 function CategoryChart({ categories }: { categories?: api.CategoryStat[] }) {
-  const values = categories?.length ? categories : [
-    { category: 'Entertainment', monthlySpend: 38 },
-    { category: 'Productivity', monthlySpend: 29 },
-    { category: 'Design', monthlySpend: 16 },
-    { category: 'Other', monthlySpend: 17 },
-  ]
+  const values = [...(categories ?? [])].sort((a, b) => b.monthlySpend - a.monthlySpend)
   const total = values.reduce((sum, item) => sum + item.monthlySpend, 0)
+  let offset = 0
+  const segments = values.map(({ monthlySpend }) => {
+    const start = offset
+    offset += total ? (monthlySpend / total) * 100 : 0
+    return `${['#f5f5f5', '#a3a3a3', '#737373', '#525252', '#262626'][values.findIndex(item => item.monthlySpend === monthlySpend) % 5]} ${start}% ${offset}%`
+  })
   return (
     <div className="mt-5 flex items-center gap-7">
-      <div className="relative size-32 shrink-0 rounded-full border-8 border-neutral-700">
+      <div className="relative size-32 shrink-0 rounded-full" style={{ background: segments.length ? `conic-gradient(${segments.join(', ')})` : '#262626' }}>
         <div className="absolute inset-0 grid place-items-center rounded-full bg-[#0b0b0b] text-center"><div><div className="text-lg font-semibold text-white">₹{total.toFixed(0)}</div><div className="text-[10px] text-neutral-500">monthly</div></div></div>
       </div>
       <div className="min-w-0 flex-1 space-y-3">
-        {values.map(({ category, monthlySpend }, index) => (
-          <div className="flex items-center text-xs" key={category}><span className={`mr-2 size-2 rounded-full ${colors[index % colors.length]}`} /><span className="flex-1 text-neutral-400">{category}</span><span className="font-medium text-neutral-200">{Math.round(monthlySpend / total * 100)}%</span></div>
-        ))}
+        {values.length ? values.map(({ category, monthlySpend }, index) => (
+          <div className="flex items-center text-xs" key={category}><span className={`mr-2 size-2 rounded-full ${colors[index % colors.length]}`} /><span className="flex-1 truncate text-neutral-400">{category}</span><span className="mr-3 text-neutral-600">₹{monthlySpend.toFixed(0)}</span><span className="font-medium text-neutral-200">{total ? Math.round(monthlySpend / total * 100) : 0}%</span></div>
+        )) : (
+          <p className="text-xs leading-5 text-neutral-600">Add a subscription to see your spending by category.</p>
+        )}
       </div>
     </div>
   )
@@ -347,12 +350,12 @@ function Subscriptions({ items, edit, remove, exportCsv }: { items: Subscription
   )
 }
 
-function Analytics() {
+function Analytics({ categories }: { categories: api.CategoryStat[] }) {
   return (
     <div className="page-content">
       <div className="page-heading"><div><div className="text-2xl font-semibold text-white">Spending analytics</div><p className="mt-1 text-sm text-neutral-500">Understand your recurring expenses and discover savings.</p></div><button className="select-button">This year <ChevronDown className="size-4" /></button></div>
       <div className="mt-6 grid gap-4 sm:grid-cols-3"><StatCard label="Average per month" value="$119.82" delta="3.1%" icon={CalendarDays} /><StatCard label="Highest month" value="$148.91" delta="December" icon={ArrowUpRight} /><StatCard label="Potential savings" value="$287.00" delta="18.9%" icon={Sparkles} trend="down" /></div>
-      <div className="mt-4 grid gap-4 xl:grid-cols-2"><Card className="p-6"><div className="section-title">Monthly trends</div><p className="section-subtitle">Spend over the last 12 months</p><SpendingChart /></Card><Card className="p-6"><div className="section-title">Category breakdown</div><p className="section-subtitle">Annual recurring costs</p><CategoryChart /><div className="mt-7 rounded-xl bg-white/[0.025] p-4 text-xs text-neutral-500">Entertainment is your largest category at <span className="font-medium text-neutral-200">$576 per year</span>.</div></Card></div>
+      <div className="mt-4 grid gap-4 xl:grid-cols-2"><Card className="p-6"><div className="section-title">Monthly trends</div><p className="section-subtitle">Spend over the last 12 months</p><SpendingChart /></Card><Card className="p-6"><div className="section-title">Category breakdown</div><p className="section-subtitle">Monthly recurring costs</p><CategoryChart categories={categories} /><div className="mt-7 rounded-xl bg-white/[0.025] p-4 text-xs text-neutral-500">{categories.length ? `${categories[0].category} is your largest category at ₹${categories[0].monthlySpend.toFixed(0)} per month.` : 'Add a subscription to see category insights.'}</div></Card></div>
     </div>
   )
 }
@@ -474,7 +477,7 @@ export default function App() {
         <main>
           {page === 'Dashboard' && <Dashboard subscriptions={subscriptions} setPage={setPage} edit={openEdit} summary={summary} categories={categories} trend={trend} user={user} />}
           {page === 'Subscriptions' && <Subscriptions items={subscriptions} edit={openEdit} remove={remove} exportCsv={exportCsv} />}
-          {page === 'Analytics' && <Analytics />}
+          {page === 'Analytics' && <Analytics categories={categories} />}
           {page === 'Settings' && <SettingsPage />}
         </main>
       </div>
